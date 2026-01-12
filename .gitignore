@@ -1,0 +1,27 @@
+
+backend.log
+error.log
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.env
+
+# Data
+data/raw/*.pgn
+data/processed/
+
+# Models
+models/
+
+# VS Code
+.vscode/
+
+/node_modules
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.DS_Store
+.DS_Store

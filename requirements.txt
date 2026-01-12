@@ -1,0 +1,10 @@
+python-chess
+tensorflow
+numpy
+pandas
+requests
+fastapi
+uvicorn
+pydantic
+python-multipart
+tensorflow-metal

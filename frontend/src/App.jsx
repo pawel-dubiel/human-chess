@@ -230,6 +230,48 @@ const App = () => {
                         animation={{ enabled: true, duration: 200 }}
                     />
                 </div>
+                
+                {/* Navigation Bar */}
+                <div style={{ display: "flex", gap: "0.5rem", background: "#262626", padding: "0.5rem", borderRadius: "8px", width: "100%", justifyContent: "center", alignItems: "center", position: "relative", zIndex: 10 }}>
+                    <button onClick={resetGame} title="Reset Game" style={{ background: "transparent", border: "none", color: "#a3a3a3", cursor: "pointer", padding: "0.5rem" }}>
+                        <RotateCcw size={20} />
+                    </button>
+                    <div style={{ width: "1px", height: "24px", background: "#404040", margin: "0 0.5rem" }}></div>
+                    
+                    <button 
+                        onClick={() => navFirst()} 
+                        disabled={viewIndex <= -1} 
+                        style={{ background: "transparent", border: "none", color: viewIndex <= -1 ? "#525252" : "white", cursor: viewIndex <= -1 ? "default" : "pointer" }}
+                    >
+                        <ChevronFirst size={24} />
+                    </button>
+                    <button 
+                        onClick={() => navPrev()} 
+                        disabled={viewIndex <= -1} 
+                        style={{ background: "transparent", border: "none", color: viewIndex <= -1 ? "#525252" : "white", cursor: viewIndex <= -1 ? "default" : "pointer" }}
+                    >
+                        <ChevronLeft size={24} />
+                    </button>
+                    
+                    <span style={{ fontFamily: "monospace", fontSize: "0.9rem", color: "#a3a3a3", minWidth: "60px", textAlign: "center" }}>
+                        {viewIndex + 1} / {history.length}
+                    </span>
+
+                    <button 
+                        onClick={() => navNext()} 
+                        disabled={viewIndex >= history.length - 1} 
+                        style={{ background: "transparent", border: "none", color: viewIndex >= history.length - 1 ? "#525252" : "white", cursor: viewIndex >= history.length - 1 ? "default" : "pointer" }}
+                    >
+                        <ChevronRight size={24} />
+                    </button>
+                    <button 
+                        onClick={() => navLast()} 
+                        disabled={viewIndex >= history.length - 1} 
+                        style={{ background: "transparent", border: "none", color: viewIndex >= history.length - 1 ? "#525252" : "white", cursor: viewIndex >= history.length - 1 ? "default" : "pointer" }}
+                    >
+                        <ChevronLast size={24} />
+                    </button>
+                </div>
             </div>
 
             {/* Controls Section */}
@@ -293,16 +335,6 @@ const App = () => {
                         style={{ flex: 1, padding: "0.5rem", borderRadius: "6px", border: "1px solid #404040", background: "#262626", color: "white" }}
                     />
                     <button onClick={loadFen} style={{ padding: "0.5rem 1rem", background: "#3b82f6", color: "white", border: "none", borderRadius: "6px" }}>Load</button>
-                </div>
-
-                <div style={{ display: "flex", gap: "1rem" }}>
-                    <button onClick={resetGame} style={{ padding: "0.75rem 1.5rem", background: "#404040", color: "white", border: "none", borderRadius: "6px", cursor: "pointer" }}>Reset Board</button>
-                    <button
-                        onClick={undoMove}
-                        style={{ padding: "0.75rem 1.5rem", background: "#404040", color: "white", border: "none", borderRadius: "6px", cursor: "pointer" }}
-                    >
-                        Undo Move
-                    </button>
                 </div>
             </div>
         </div>

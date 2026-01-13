@@ -7,6 +7,9 @@ The primary goal of this project is to create a chess AI that **plays like a hum
 3.  **Human Error Prediction (Current)**: The system predicts the *probability* of a blunder for a given position and Elo.
 4.  **Ultimate Sparring Partner (Future Goal)**: Integrating this probability engine into a chess bot to create an opponent that plays "realistic" mistakes rather than random computer errors.
 
+
+![alt text](image.png)
+
 ## How It Works
 This project uses a deep neural network (Keras/TensorFlow) trained on millions of real human chess games.
 1.  **Data Processing**: We analyze PGN games using Stockfish to label every move. We calculate if a human move was a "blunder" (lost >1.0 pawn) compared to the optimal line.

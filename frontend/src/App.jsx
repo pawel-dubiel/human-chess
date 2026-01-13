@@ -2,14 +2,18 @@ import React, { useState, useEffect, useRef } from 'react';
 import Chessground from '@bezalel6/react-chessground';
 import '@bezalel6/react-chessground/dist/react-chessground.css';
 import { Chess } from 'chess.js';
+import { ChevronFirst, ChevronLeft, ChevronRight, ChevronLast, RotateCcw } from 'lucide-react';
 
 const App = () => {
     // Game State
     const chess = useRef(new Chess());
     const [fen, setFen] = useState(chess.current.fen());
+    const [startFen, setStartFen] = useState(chess.current.fen());
     const [lastMove, setLastMove] = useState(null);
+    const [history, setHistory] = useState([]); // Array of moves
+    const [viewIndex, setViewIndex] = useState(-1); // -1 = start pos, 0 = after 1st move, etc.
     
-    // Initialize with safe defaults to prevent runtime errors
+    // Initialize with safe defaults
     const [config, setConfig] = useState({
         turnColor: 'white',
         movable: {

@@ -146,41 +146,43 @@ const App = () => {
     };
 
     const onMove = (from, to) => {
+        // Handle branching if we are not at the latest move
+        if (viewIndex < history.length - 1) {
+             // Rewind master instance to the viewIndex point
+             // Effectively truncating history and creating a new branch
+             while (chess.current.history().length > viewIndex + 1) {
+                 chess.current.undo();
+             }
+        }
+
         try {
-            const move = chess.current.move({ from, to, promotion: 'q' }); // Always promote to queen for simplicity
+            const move = chess.current.move({ from, to, promotion: 'q' });
             if (move) {
+                const newHist = chess.current.history();
+                setHistory(newHist);
+                setViewIndex(newHist.length - 1); // Snap to latest
                 setFen(chess.current.fen());
                 setLastMove([from, to]);
                 setDebugMsg(`Moved: ${move.san}`);
-                updateBoardConfig();
+                updateBoardConfig(true);
             }
         } catch (e) {
             setDebugMsg(`Invalid: ${e.message}`);
-            // Force re-render to snap back if needed, though Chessground usually handles this via 'movable'
-            updateBoardConfig(); 
+            // Force re-render/reset
+            updateBoardConfig(true); 
         }
     };
 
     const resetGame = () => {
         chess.current.reset();
-        setFen(chess.current.fen());
+        const start = chess.current.fen();
+        setStartFen(start);
+        setHistory([]);
+        setViewIndex(-1);
+        setFen(start);
         setLastMove(null);
         setDebugMsg("Game Reset");
-        updateBoardConfig();
-    };
-
-    const undoMove = () => {
-        chess.current.undo();
-        setFen(chess.current.fen());
-        const history = chess.current.history({ verbose: true });
-        if (history.length > 0) {
-            const last = history[history.length - 1];
-            setLastMove([last.from, last.to]);
-        } else {
-            setLastMove(null);
-        }
-        setDebugMsg("Undo");
-        updateBoardConfig();
+        updateBoardConfig(true);
     };
 
     const loadFen = () => {
@@ -188,21 +190,33 @@ const App = () => {
             const cleanFen = manualFen.trim();
             if (!cleanFen) throw new Error("FEN is required.");
             chess.current.load(cleanFen);
-            setFen(chess.current.fen());
+            
+            const start = chess.current.fen();
+            setStartFen(start);
+            setHistory([]); 
+            setViewIndex(-1);
+            
+            setFen(start);
             setLastMove(null);
             setDebugMsg(`Loaded: ${cleanFen}`);
-            updateBoardConfig();
+            updateBoardConfig(true);
         } catch (e) {
             setDebugMsg(`Invalid FEN: ${e.message}`);
         }
     };
 
+    // Navigation Handlers
+    const navFirst = () => setViewIndex(-1);
+    const navPrev = () => setViewIndex(i => Math.max(-1, i - 1));
+    const navNext = () => setViewIndex(i => Math.min(history.length - 1, i + 1));
+    const navLast = () => setViewIndex(history.length - 1);
+
     return (
         <div style={{ padding: "2rem", display: "flex", gap: "2rem", fontFamily: "sans-serif", background: "#1a1a1a", minHeight: "100vh", color: "#e0e0e0" }}>
             
             {/* Board Section */}
-            <div style={{ flex: 1, maxWidth: "600px", display: "flex", justifyContent: "center", alignItems: "flex-start" }}>
-                <div style={{ height: "600px", width: "600px" }}> {/* Container must have explicit size for Chessground */}
+            <div style={{ flex: 1, maxWidth: "600px", display: "flex", flexDirection: "column", gap: "1rem", alignItems: "center" }}>
+                <div style={{ height: "600px", width: "600px" }}>
                     <Chessground
                         width="100%"
                         height="100%"

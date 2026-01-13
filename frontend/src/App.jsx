@@ -40,10 +40,23 @@ const App = () => {
         checkApi();
     }, []);
 
-    // Trigger prediction when FEN changes (and game isn't over/reset)
+    // Trigger prediction when FEN changes (and we are at the latest position)
     useEffect(() => {
-        getPrediction();
-    }, [fen, elo]);
+        // Only fetch prediction if we are looking at the latest position
+        if (viewIndex === history.length - 1) {
+            getPrediction();
+        }
+    }, [fen, elo, viewIndex, history.length]);
+
+    // Sync FEN to input box for easy copying
+    useEffect(() => {
+        setManualFen(fen);
+    }, [fen]);
+
+    // Handle Time Travel / Navigation
+    useEffect(() => {
+        updateBoardFromHistory();
+    }, [viewIndex, history]);
 
     const checkApi = () => {
         fetch("http://localhost:8000/")
@@ -71,17 +84,59 @@ const App = () => {
         setLoading(false);
     };
 
-    const updateBoardConfig = () => {
+    const updateBoardFromHistory = () => {
+        // Strategy: Load the full game PGN into a temp instance and undo until we reach viewIndex.
+        // This is robust because it handles custom start positions (FEN) automatically via PGN headers.
+        const tmp = new Chess();
+        
+        try {
+            const pgn = chess.current.pgn();
+            
+            // Load the entire game history from the master instance
+            tmp.loadPgn(pgn);
+            
+            // Undo moves until we match the viewIndex
+            let currentPly = history.length - 1;
+            while (currentPly > viewIndex) {
+                tmp.undo();
+                currentPly--;
+            }
+            
+            setFen(tmp.fen());
+            
+            // Update last move highlight based on the board state at viewIndex
+            const verboseHist = tmp.history({ verbose: true });
+            if (verboseHist.length > 0) {
+                const last = verboseHist[verboseHist.length - 1];
+                setLastMove([last.from, last.to]);
+            } else {
+                setLastMove(null);
+            }
+
+            // Interactive only if we are at the LATEST move
+            // Actually, we want to allow branching, so ALWAYS interactive.
+            // But we must pass the 'tmp' instance so it calculates moves for the PAST board, not the future one.
+            updateBoardConfig(true, tmp);
+            
+        } catch (e) {
+            console.error("History update error:", e);
+            setDebugMsg(`Nav Error: ${e.message}`);
+        }
+    };
+
+    const updateBoardConfig = (interactive = true, chessInstance = chess.current) => {
         const dests = new Map();
-        chess.current.moves({ verbose: true }).forEach(m => {
-            dests.set(m.from, (dests.get(m.from) || []).concat(m.to));
-        });
+        if (interactive) {
+            chessInstance.moves({ verbose: true }).forEach(m => {
+                dests.set(m.from, (dests.get(m.from) || []).concat(m.to));
+            });
+        }
         
         setConfig({
-            turnColor: chess.current.turn() === 'w' ? 'white' : 'black',
+            turnColor: chessInstance.turn() === 'w' ? 'white' : 'black',
             movable: {
                 free: false,
-                color: chess.current.turn() === 'w' ? 'white' : 'black',
+                color: interactive ? (chessInstance.turn() === 'w' ? 'white' : 'black') : undefined,
                 dests: dests,
             },
             draggable: {

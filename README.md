@@ -1,13 +1,13 @@
-###############################################
-# EXPERIMENTAL: SMALL DATASET / PROTOTYPE ONLY #
-###############################################
-This project is **experimental** and the current model is trained on a **very small dataset** (roughly ~2,000 games). That is far below what is needed for reliable, stable predictions. Expect noisy outputs, weak generalization, and occasional nonsense in edge positions. The architecture and data pipeline are designed to scale to much larger datasets, but the present model should be treated as a prototype.
+# EXPERIMENTAL: SMALL DATASET / PROTOTYPE ONLY
+
+This project is **experimental** and the current model is trained on a **very small dataset** (roughly ~2,000 games). That is far below what is needed for reliable, stable predictions. Expect noisy outputs, weak generalization, and  nonsense in positions. The architecture and data pipeline are for much larger datasets.
+(soon I will try to run on 100k games)
 
 # Human-Like Chess AI: Project Overview
 
 ## Goal
 The primary goal of this project is to create a chess AI that **plays like a human**, not just a perfect engine. Unlike Stockfish, which always seeks the optimal move, use this system to:
-1.  **Understand Position Complexity**: Identifying positions where humans are likely to crack under pressure.
+1.  **Understand Position Complexity**: Identifying positions where humans are likely to crack under pressure for specific ELO
 2.  **Simulate Human Errors**: predicting likely blunders based on the specific **Elo rating** of the player.
 3.  **Human Error Prediction (Current)**: The system predicts the *probability* of a blunder for a given position and Elo.
 4.  **Ultimate Sparring Partner (Future Goal)**: Integrating this probability engine into a chess bot to create an opponent that plays "realistic" mistakes rather than random computer errors.

@@ -11,7 +11,9 @@ The primary goal of this project is to create a chess AI that **plays like a hum
 ![alt text](image.png)
 
 ## How It Works
-This project uses a deep neural network (Keras/TensorFlow) trained on millions of real human chess games.
+This project uses a deep neural network (Keras/TensorFlow).
+> **Note**: Currently, the model is trained on a small prototype dataset (~2,000 games) due to hardware and time limitations. To achieve optimal results and true human-like performance, the system is designed to be trained and tested on a massive dataset (millions of games) in the future.
+
 1.  **Data Processing**: We analyze PGN games using Stockfish to label every move. We calculate if a human move was a "blunder" (lost >1.0 pawn) compared to the optimal line.
 2.  **Training**: The model learns to predict `Probability(Blunder)` given:
     *   The current Board State (Piece locations).

@@ -172,16 +172,16 @@ const App = () => {
                     <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>Target Rating (Elo): {elo}</label>
                     <input
                         type="range"
-                        min="1000"
-                        max="2800"
-                        step="100"
+                        min="600"
+                        max="2400"
+                        step="50"
                         value={elo}
                         onChange={(e) => setElo(e.target.value)}
                         style={{ width: "100%", accentColor: "#3b82f6" }}
                     />
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", color: "#a3a3a3", marginTop: "0.25rem" }}>
-                        <span>Beginner (1000)</span>
-                        <span>Grandmaster (2800)</span>
+                        <span>Beginner (600)</span>
+                        <span>Master (2400)</span>
                     </div>
                 </div>
 

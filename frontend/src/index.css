@@ -7,25 +7,13 @@
   background-color: #242424;
 }
 
+/* Global box-sizing reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-}
-
-/* Fix for chessboard images and layout gaps */
-img {
-  display: block;
-  max-width: 100%;
-}
-
-/* Force line-height 0 to prevent gaps between rows */
-div[data-boardid] {
-  line-height: 0;
-  font-size: 0;
-}
-
-div[data-boardid] img {
-  display: block;
-  vertical-align: top;
 }

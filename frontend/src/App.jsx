@@ -1,10 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { Chessboard } from 'react-chessboard';
+import React, { useState, useEffect, useRef } from 'react';
+import Chessground from '@bezalel6/react-chessground';
+import '@bezalel6/react-chessground/dist/react-chessground.css';
 import { Chess } from 'chess.js';
-import { AlertCircle, CheckCircle } from 'lucide-react';
 
 const App = () => {
-    const [game, setGame] = useState(new Chess());
+    // Game State
+    const chess = useRef(new Chess());
+    const [fen, setFen] = useState(chess.current.fen());
+    const [lastMove, setLastMove] = useState(null);
+    
+    // Initialize with safe defaults to prevent runtime errors
+    const [config, setConfig] = useState({
+        turnColor: 'white',
+        movable: {
+            free: false,
+            color: 'white',
+            dests: new Map(),
+        },
+        draggable: {
+            showGhost: true,
+        }
+    });
+    
+    // UI State
     const [elo, setElo] = useState(1500);
     const [errorProb, setErrorProb] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -12,17 +30,23 @@ const App = () => {
     const [debugMsg, setDebugMsg] = useState("Ready");
     const [manualFen, setManualFen] = useState("");
 
+    // Initialize board config
     useEffect(() => {
-        // Check API
-        fetch("http://localhost:8000/")
-            .then(res => res.json())
-            .then(data => setServerStatus("online"))
-            .catch(err => setServerStatus("offline"));
+        updateBoardConfig();
+        checkApi();
     }, []);
 
+    // Trigger prediction when FEN changes (and game isn't over/reset)
     useEffect(() => {
         getPrediction();
-    }, [game, elo]);
+    }, [fen, elo]);
+
+    const checkApi = () => {
+        fetch("http://localhost:8000/")
+            .then(res => res.json())
+            .then(() => setServerStatus("online"))
+            .catch(() => setServerStatus("offline"));
+    };
 
     const getPrediction = async () => {
         setLoading(true);
@@ -31,7 +55,7 @@ const App = () => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    fen: game.fen(),
+                    fen: fen,
                     elo: parseInt(elo)
                 })
             });
@@ -43,41 +67,72 @@ const App = () => {
         setLoading(false);
     };
 
-    function onDrop(sourceSquare, targetSquare) {
-        setDebugMsg(`Drop: ${sourceSquare}->${targetSquare}`);
-        try {
-            const gameCopy = new Chess(game.fen());
-            
-            // chess.js 1.x throws an error if the move is invalid
-            const move = gameCopy.move({
-                from: sourceSquare,
-                to: targetSquare,
-                promotion: "q",
-            });
+    const updateBoardConfig = () => {
+        const dests = new Map();
+        chess.current.moves({ verbose: true }).forEach(m => {
+            dests.set(m.from, (dests.get(m.from) || []).concat(m.to));
+        });
+        
+        setConfig({
+            turnColor: chess.current.turn() === 'w' ? 'white' : 'black',
+            movable: {
+                free: false,
+                color: chess.current.turn() === 'w' ? 'white' : 'black',
+                dests: dests,
+            },
+            draggable: {
+                showGhost: true,
+            }
+        });
+    };
 
-            setGame(gameCopy);
-            setDebugMsg(`Moved: ${move.san}`);
-            return true;
+    const onMove = (from, to) => {
+        try {
+            const move = chess.current.move({ from, to, promotion: 'q' }); // Always promote to queen for simplicity
+            if (move) {
+                setFen(chess.current.fen());
+                setLastMove([from, to]);
+                setDebugMsg(`Moved: ${move.san}`);
+                updateBoardConfig();
+            }
         } catch (e) {
-            setDebugMsg(`Invalid/Err: ${e.message}`);
-            return false;
+            setDebugMsg(`Invalid: ${e.message}`);
+            // Force re-render to snap back if needed, though Chessground usually handles this via 'movable'
+            updateBoardConfig(); 
         }
-    }
+    };
 
     const resetGame = () => {
-        setGame(new Chess());
+        chess.current.reset();
+        setFen(chess.current.fen());
+        setLastMove(null);
+        setDebugMsg("Game Reset");
+        updateBoardConfig();
+    };
+
+    const undoMove = () => {
+        chess.current.undo();
+        setFen(chess.current.fen());
+        const history = chess.current.history({ verbose: true });
+        if (history.length > 0) {
+            const last = history[history.length - 1];
+            setLastMove([last.from, last.to]);
+        } else {
+            setLastMove(null);
+        }
+        setDebugMsg("Undo");
+        updateBoardConfig();
     };
 
     const loadFen = () => {
         try {
             const cleanFen = manualFen.trim();
-            if (!cleanFen) {
-                throw new Error("FEN is required.");
-            }
-            // Let chess.js handle validation
-            const newGame = new Chess(cleanFen);
-            setGame(newGame);
+            if (!cleanFen) throw new Error("FEN is required.");
+            chess.current.load(cleanFen);
+            setFen(chess.current.fen());
+            setLastMove(null);
             setDebugMsg(`Loaded: ${cleanFen}`);
+            updateBoardConfig();
         } catch (e) {
             setDebugMsg(`Invalid FEN: ${e.message}`);
         }
@@ -85,15 +140,26 @@ const App = () => {
 
     return (
         <div style={{ padding: "2rem", display: "flex", gap: "2rem", fontFamily: "sans-serif", background: "#1a1a1a", minHeight: "100vh", color: "#e0e0e0" }}>
-            <div style={{ flex: 1, maxWidth: "600px" }}>
-                <Chessboard
-                    id="BasicBoard"
-                    position={game.fen()}
-                    onPieceDrop={onDrop}
-                    boardWidth={500}
-                />
+            
+            {/* Board Section */}
+            <div style={{ flex: 1, maxWidth: "600px", display: "flex", justifyContent: "center", alignItems: "flex-start" }}>
+                <div style={{ height: "600px", width: "600px" }}> {/* Container must have explicit size for Chessground */}
+                    <Chessground
+                        width="100%"
+                        height="100%"
+                        fen={fen}
+                        onMove={onMove}
+                        lastMove={lastMove}
+                        turnColor={config.turnColor}
+                        movable={config.movable}
+                        draggable={config.draggable}
+                        check={chess.current.inCheck()}
+                        animation={{ enabled: true, duration: 200 }}
+                    />
+                </div>
             </div>
 
+            {/* Controls Section */}
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "1.5rem" }}>
                 <h1 style={{ margin: 0 }}>Human-Like Chess AI</h1>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem" }}>
@@ -159,11 +225,7 @@ const App = () => {
                 <div style={{ display: "flex", gap: "1rem" }}>
                     <button onClick={resetGame} style={{ padding: "0.75rem 1.5rem", background: "#404040", color: "white", border: "none", borderRadius: "6px", cursor: "pointer" }}>Reset Board</button>
                     <button
-                        onClick={() => {
-                            const gameCopy = new Chess(game.fen());
-                            gameCopy.undo();
-                            setGame(gameCopy);
-                        }}
+                        onClick={undoMove}
                         style={{ padding: "0.75rem 1.5rem", background: "#404040", color: "white", border: "none", borderRadius: "6px", cursor: "pointer" }}
                     >
                         Undo Move

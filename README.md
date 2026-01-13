@@ -7,6 +7,7 @@ The primary goal of this project is to create a chess AI that **plays like a hum
 3.  **Human Error Prediction (Current)**: The system predicts the *probability* of a blunder for a given position and Elo.
 4.  **Ultimate Sparring Partner (Future Goal)**: Integrating this probability engine into a chess bot to create an opponent that plays "realistic" mistakes rather than random computer errors.
 
+“Best” (engine‑best) optimizes objective eval, while “opponent blunder likelihood” optimizes human error risk. They often correlate in sharp positions, but they can diverge—some objectively best moves simplify and reduce blunder chances, while a slightly inferior move can increase complexity and opponent error risk. 
 
 ![alt text](image.png)
 

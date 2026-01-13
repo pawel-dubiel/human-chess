@@ -10,10 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@bezalel6/react-chessground": "^2.1.1",
     "chess.js": "^1.4.0",
     "lucide-react": "^0.562.0",
     "react": "^19.2.0",
-    "react-chessboard": "^5.8.6",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {

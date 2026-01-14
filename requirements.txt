@@ -1,10 +1,14 @@
 python-chess
-tensorflow
 numpy
 pandas
 requests
-fastapi
-uvicorn
 pydantic
-python-multipart
-tensorflow-metal
+# Machine Learning
+torch
+torchvision
+scikit-learn
+# Hugging Face
+huggingface_hub
+datasets
+gradio
+safetensors

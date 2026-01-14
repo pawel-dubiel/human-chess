@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postinstall": "mkdir -p public/assets && cp node_modules/stockfish.js/stockfish.wasm public/assets/"
   },
   "dependencies": {
     "@bezalel6/react-chessground": "^2.1.1",

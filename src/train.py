@@ -12,7 +12,7 @@ from huggingface_hub import HfApi
 DATA_FILE = "data/processed/chess_complexity_data.csv"
 MODEL_DIR = "models"
 MODEL_NAME = "human-chess-blunder-cnn"
-BATCH_SIZE = 32
+BATCH_SIZE = 256 # Optimization: Increased batch size
 LEARNING_RATE = 0.001
 
 def train(epochs=10, push_to_hub=False, repo_id=None):
@@ -35,8 +35,13 @@ def train(epochs=10, push_to_hub=False, repo_id=None):
     val_size = len(dataset) - train_size
     train_data, val_data = random_split(dataset, [train_size, val_size])
 
-    train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_data, batch_size=BATCH_SIZE)
+    # Optimization: num_workers and pin_memory
+    num_workers = min(4, os.cpu_count() or 1)
+    # MPS does not support pin_memory properly yet
+    use_pin_memory = True if device.type == "cuda" else False
+    
+    train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True, num_workers=num_workers, pin_memory=use_pin_memory)
+    val_loader = DataLoader(val_data, batch_size=BATCH_SIZE, num_workers=num_workers, pin_memory=use_pin_memory)
 
     # Model
     model = ChessBlunderCNN().to(device)

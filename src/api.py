@@ -1,82 +1,40 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-import chess
-import numpy as np
-from tensorflow import keras
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+import torch
+import numpy as np
+import chess
+from src.model import ChessBlunderCNN
 import os
 
 app = FastAPI()
-
-# Enable CORS for frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-MODEL_PATH = "models/human_error_model_elo.keras"
-model = None
 
 # Input Schema
 class PredictionRequest(BaseModel):
     fen: str
     elo: int
 
+# Load Model
+MODEL_PATH = "models/human-chess-blunder-cnn"
+device = torch.device("cpu") # CPU for inference
+model = None
 
-def validate_fen(fen: str) -> chess.Board:
-    if fen is None or not fen.strip():
-        raise HTTPException(status_code=400, detail="FEN is required.")
-    try:
-        return chess.Board(fen)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid FEN: {exc}") from exc
-
-
-def validate_request(fen: str, elo: int) -> chess.Board:
-    if model is None:
-        raise HTTPException(status_code=503, detail="Model not loaded. Train it or add models/human_error_model_elo.keras.")
-    if elo is None:
-        raise HTTPException(status_code=400, detail="Elo is required.")
-    if elo <= 0 or elo > 3000:
-        raise HTTPException(status_code=400, detail="Elo must be between 1 and 3000.")
-    return validate_fen(fen)
-
-
-def predict_probability(fen: str, elo: int) -> float:
-    tensor = fen_to_tensor(fen)
-    board_input = np.expand_dims(tensor, axis=0)
-    elo_input = np.array([elo / 3000.0])
-    prediction = model.predict({"board_input": board_input, "elo_input": elo_input})
-    return float(prediction[0][0])
-
-
-def flip_fen_turn(fen: str) -> str:
-    parts = fen.split(" ")
-    if len(parts) < 2:
-        raise ValueError("FEN missing side-to-move field.")
-    if parts[1] == "w":
-        parts[1] = "b"
-    elif parts[1] == "b":
-        parts[1] = "w"
-    else:
-        raise ValueError("FEN has invalid side-to-move field.")
-    return " ".join(parts)
-
-def load_ai_model():
-    global model
+print("Loading model...")
+try:
     if os.path.exists(MODEL_PATH):
-        print(f"Loading model from {MODEL_PATH}...")
-        model = keras.models.load_model(MODEL_PATH)
+        model = ChessBlunderCNN.from_pretrained(MODEL_PATH).to(device)
+        model.eval()
+        print("Model loaded from local path.")
     else:
-        print("Model not found! Please train it first.")
+        print(f"Model not found at {MODEL_PATH}. Prediction endpoints will fail until trained.")
+except Exception as e:
+    print(f"Failed to load model: {e}")
 
+# Helper Functions
 def fen_to_tensor(fen):
     board = chess.Board(fen)
-    tensor = np.zeros((8, 8, 12), dtype=np.float32)
+    tensor = np.zeros((12, 8, 8), dtype=np.float32)
     piece_map = {
         chess.PAWN: 0, chess.KNIGHT: 1, chess.BISHOP: 2,
         chess.ROOK: 3, chess.QUEEN: 4, chess.KING: 5
@@ -87,77 +45,85 @@ def fen_to_tensor(fen):
         layer = piece_map[piece.piece_type]
         if piece.color == chess.BLACK:
             layer += 6
-        tensor[rank, file, layer] = 1.0
-    return tensor
+        tensor[layer, rank, file] = 1.0
+    return torch.from_numpy(tensor).unsqueeze(0)
 
-@app.on_event("startup")
-async def startup_event():
-    load_ai_model()
+def predict_single(fen, elo):
+    if model is None:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+    
+    board_tensor = fen_to_tensor(fen).to(device)
+    elo_tensor = torch.tensor([[elo / 3000.0]], dtype=torch.float32).to(device)
+    
+    with torch.no_grad():
+        probability = model(board_tensor, elo_tensor).item()
+    return probability
 
-@app.get("/")
-def read_root():
-    return {"status": "ok", "model_loaded": model is not None}
+def flip_fen_turn(fen):
+    parts = fen.split(" ")
+    parts[1] = "w" if parts[1] == "b" else "b"
+    return " ".join(parts)
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+# Endpoints
 @app.post("/predict")
-def predict(request: PredictionRequest):
-    board = validate_request(request.fen, request.elo)
+def predict_endpoint(req: PredictionRequest):
     try:
-        probability = predict_probability(board.fen(), request.elo)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {exc}") from exc
-
-    return {
-        "fen": request.fen,
-        "side_to_move": "white" if board.turn == chess.WHITE else "black",
-        "predicted_for": "side_to_move",
-        "elo": request.elo,
-        "human_error_probability": probability,
-        "is_risky": probability > 0.5
-    }
-
+        prob = predict_single(req.fen, req.elo)
+        return {"human_error_probability": prob}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/predict_moves")
-def predict_moves(request: PredictionRequest):
-    board = validate_request(request.fen, request.elo)
-    legal_moves = list(board.legal_moves)
-    if not legal_moves:
-        raise HTTPException(status_code=400, detail="No legal moves for this position.")
-
+def predict_moves_endpoint(req: PredictionRequest):
+    """
+    Simulates legal moves and predicts opponent error probability for each.
+    Used for heatmap generation.
+    """
     try:
-        baseline_fen = flip_fen_turn(board.fen())
-        baseline_opponent_probability = predict_probability(baseline_fen, request.elo)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Baseline prediction failed: {exc}") from exc
+        board = chess.Board(req.fen)
+        legal_moves = list(board.legal_moves)
+        
+        # Baseline: Probability of opponent error in current position (if it were their turn)
+        # We simulate "opponent's view" by flipping turn, though technically we want
+        # to know "If I make move X, what is the prob opponent blunders?"
+        # So we look at the resulting FENs.
+        
+        results = []
+        for move in legal_moves:
+            board.push(move)
+            # Now it is opponent's turn. Predict their blunder prob.
+            try:
+                prob = predict_single(board.fen(), req.elo)
+                results.append({
+                    "from": chess.square_name(move.from_square),
+                    "to": chess.square_name(move.to_square),
+                    "opponent_error_probability": prob,
+                    "opponent_error_delta": prob, # Simplified for now
+                    "san": board.peek().san()
+                })
+            except:
+                pass 
+            board.pop()
+            
+        # Sort by highest error probability (best traps)
+        results.sort(key=lambda x: x["opponent_error_probability"], reverse=True)
+        
+        return {"moves": results}
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    results = []
-    for move in legal_moves:
-        san = board.san(move)
-        board.push(move)
-        try:
-            opponent_probability = predict_probability(board.fen(), request.elo)
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"Prediction failed: {exc}") from exc
-        board.pop()
-
-        results.append({
-            "from": chess.square_name(move.from_square),
-            "to": chess.square_name(move.to_square),
-            "uci": move.uci(),
-            "san": san,
-            "predicted_for": "opponent_to_move",
-            "side_to_move_after": "white" if board.turn == chess.WHITE else "black",
-            "opponent_error_probability": opponent_probability,
-            "opponent_error_delta": opponent_probability - baseline_opponent_probability
-        })
-
-    return {
-        "fen": request.fen,
-        "side_to_move": "white" if board.turn == chess.WHITE else "black",
-        "predicted_for": "opponent_to_move",
-        "elo": request.elo,
-        "opponent_baseline_probability": baseline_opponent_probability,
-        "moves": results
-    }
+# Mount Static Files (Frontend)
+# We expect the frontend to be built to 'frontend/dist'
+if os.path.exists("frontend/dist"):
+    app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="static")
+else:
+    print("Warning: frontend/dist not found. Run 'npm run build' in frontend/.")
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=7860)

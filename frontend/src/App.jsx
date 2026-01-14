@@ -14,7 +14,7 @@ const App = () => {
     const [lastMove, setLastMove] = useState(null);
     const [history, setHistory] = useState([]); // Array of moves
     const [viewIndex, setViewIndex] = useState(-1); // -1 = start pos, 0 = after 1st move, etc.
-    
+
     // Initialize with safe defaults
     const [config, setConfig] = useState({
         turnColor: 'white',
@@ -27,7 +27,7 @@ const App = () => {
             showGhost: true,
         }
     });
-    
+
     // UI State
     const [elo, setElo] = useState(1500);
     const [errorProb, setErrorProb] = useState(null);
@@ -61,19 +61,11 @@ const App = () => {
 
     // Trigger prediction when FEN changes (and we are at the latest position)
     useEffect(() => {
-        // Only fetch prediction if we are looking at the latest position
-        if (viewIndex === history.length - 1) {
-            getPrediction();
-            getMoveHeatmap();
-            return;
-        }
+        // Fetch prediction for the current FEN (whether latest or historical)
+        getPrediction();
+    }, [fen, elo]);
 
-        setHeatmapShapes([]);
-        setHeatmapMarkers([]);
-        setHeatmapMoves([]);
-        setHeatmapError("Heatmap is only shown for the latest position.");
-    }, [fen, elo, viewIndex, history.length]);
-    
+
     useEffect(() => {
         return () => {
             if (predictionAbortRef.current) {
@@ -131,7 +123,7 @@ const App = () => {
     }, [viewIndex, history]);
 
     const checkApi = () => {
-        fetch("http://localhost:8000/")
+        fetch("/health")
             .then(res => res.json())
             .then(() => setServerStatus("online"))
             .catch(() => setServerStatus("offline"));
@@ -334,7 +326,7 @@ const App = () => {
             }
             controller = new AbortController();
             predictionAbortRef.current = controller;
-            const response = await fetch("http://localhost:8000/predict", {
+            const response = await fetch("/predict", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -469,7 +461,7 @@ const App = () => {
             }
             controller = new AbortController();
             heatmapAbortRef.current = controller;
-            const response = await fetch("http://localhost:8000/predict_moves", {
+            const response = await fetch("/predict_moves", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -508,22 +500,22 @@ const App = () => {
         // Strategy: Load the full game PGN into a temp instance and undo until we reach viewIndex.
         // This is robust because it handles custom start positions (FEN) automatically via PGN headers.
         const tmp = new Chess();
-        
+
         try {
             const pgn = chess.current.pgn();
-            
+
             // Load the entire game history from the master instance
             tmp.loadPgn(pgn);
-            
+
             // Undo moves until we match the viewIndex
             let currentPly = history.length - 1;
             while (currentPly > viewIndex) {
                 tmp.undo();
                 currentPly--;
             }
-            
+
             setFen(tmp.fen());
-            
+
             // Update last move highlight based on the board state at viewIndex
             const verboseHist = tmp.history({ verbose: true });
             if (verboseHist.length > 0) {
@@ -537,7 +529,7 @@ const App = () => {
             // Actually, we want to allow branching, so ALWAYS interactive.
             // But we must pass the 'tmp' instance so it calculates moves for the PAST board, not the future one.
             updateBoardConfig(true, tmp);
-            
+
         } catch (e) {
             console.error("History update error:", e);
             setDebugMsg(`Nav Error: ${e.message}`);
@@ -551,7 +543,7 @@ const App = () => {
                 dests.set(m.from, (dests.get(m.from) || []).concat(m.to));
             });
         }
-        
+
         setConfig({
             turnColor: chessInstance.turn() === 'w' ? 'white' : 'black',
             movable: {
@@ -568,11 +560,11 @@ const App = () => {
     const onMove = (from, to) => {
         // Handle branching if we are not at the latest move
         if (viewIndex < history.length - 1) {
-             // Rewind master instance to the viewIndex point
-             // Effectively truncating history and creating a new branch
-             while (chess.current.history().length > viewIndex + 1) {
-                 chess.current.undo();
-             }
+            // Rewind master instance to the viewIndex point
+            // Effectively truncating history and creating a new branch
+            while (chess.current.history().length > viewIndex + 1) {
+                chess.current.undo();
+            }
         }
 
         try {
@@ -589,7 +581,7 @@ const App = () => {
         } catch (e) {
             setDebugMsg(`Invalid: ${e.message}`);
             // Force re-render/reset
-            updateBoardConfig(true); 
+            updateBoardConfig(true);
         }
     };
 
@@ -610,12 +602,12 @@ const App = () => {
             const cleanFen = manualFen.trim();
             if (!cleanFen) throw new Error("FEN is required.");
             chess.current.load(cleanFen);
-            
+
             const start = chess.current.fen();
             setStartFen(start);
-            setHistory([]); 
+            setHistory([]);
             setViewIndex(-1);
-            
+
             setFen(start);
             setLastMove(null);
             setDebugMsg(`Loaded: ${cleanFen}`);
@@ -633,7 +625,7 @@ const App = () => {
 
     return (
         <div style={{ padding: "2rem", display: "flex", gap: "2rem", fontFamily: "sans-serif", background: "#1a1a1a", minHeight: "100vh", color: "#e0e0e0" }}>
-            
+
             {/* Board Section */}
             <div style={{ flex: 1, maxWidth: "600px", display: "flex", flexDirection: "column", gap: "1rem", alignItems: "center" }}>
                 <div style={{ height: "600px", width: "600px", position: "relative" }}>
@@ -664,75 +656,46 @@ const App = () => {
                             pointerEvents: "none"
                         }}
                     >
-                        {heatmapMarkers.map((marker) => (
-                            <div
-                                key={`${marker.square}-${marker.label}`}
-                                style={{
-                                    gridRow: marker.grid.row,
-                                    gridColumn: marker.grid.col,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center"
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        width: "28px",
-                                        height: "28px",
-                                        borderRadius: "999px",
-                                        background: marker.color,
-                                        color: "#111827",
-                                        fontWeight: 700,
-                                        fontSize: "0.85rem",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        boxShadow: "0 2px 6px rgba(0,0,0,0.35)"
-                                    }}
-                                >
-                                    {marker.label}
-                                </div>
-                            </div>
-                        ))}
+                        {/* Heatmap markers removed */}
                     </div>
                 </div>
-                
+
                 {/* Navigation Bar */}
                 <div style={{ display: "flex", gap: "0.5rem", background: "#262626", padding: "0.5rem", borderRadius: "8px", width: "100%", justifyContent: "center", alignItems: "center", position: "relative", zIndex: 10 }}>
                     <button onClick={resetGame} title="Reset Game" style={{ background: "transparent", border: "none", color: "#a3a3a3", cursor: "pointer", padding: "0.5rem" }}>
                         <RotateCcw size={20} />
                     </button>
                     <div style={{ width: "1px", height: "24px", background: "#404040", margin: "0 0.5rem" }}></div>
-                    
-                    <button 
-                        onClick={() => navFirst()} 
-                        disabled={viewIndex <= -1} 
+
+                    <button
+                        onClick={() => navFirst()}
+                        disabled={viewIndex <= -1}
                         style={{ background: "transparent", border: "none", color: viewIndex <= -1 ? "#525252" : "white", cursor: viewIndex <= -1 ? "default" : "pointer" }}
                     >
                         <ChevronFirst size={24} />
                     </button>
-                    <button 
-                        onClick={() => navPrev()} 
-                        disabled={viewIndex <= -1} 
+                    <button
+                        onClick={() => navPrev()}
+                        disabled={viewIndex <= -1}
                         style={{ background: "transparent", border: "none", color: viewIndex <= -1 ? "#525252" : "white", cursor: viewIndex <= -1 ? "default" : "pointer" }}
                     >
                         <ChevronLeft size={24} />
                     </button>
-                    
+
                     <span style={{ fontFamily: "monospace", fontSize: "0.9rem", color: "#a3a3a3", minWidth: "60px", textAlign: "center" }}>
                         {viewIndex + 1} / {history.length}
                     </span>
 
-                    <button 
-                        onClick={() => navNext()} 
-                        disabled={viewIndex >= history.length - 1} 
+                    <button
+                        onClick={() => navNext()}
+                        disabled={viewIndex >= history.length - 1}
                         style={{ background: "transparent", border: "none", color: viewIndex >= history.length - 1 ? "#525252" : "white", cursor: viewIndex >= history.length - 1 ? "default" : "pointer" }}
                     >
                         <ChevronRight size={24} />
                     </button>
-                    <button 
-                        onClick={() => navLast()} 
-                        disabled={viewIndex >= history.length - 1} 
+                    <button
+                        onClick={() => navLast()}
+                        disabled={viewIndex >= history.length - 1}
                         style={{ background: "transparent", border: "none", color: viewIndex >= history.length - 1 ? "#525252" : "white", cursor: viewIndex >= history.length - 1 ? "default" : "pointer" }}
                     >
                         <ChevronLast size={24} />

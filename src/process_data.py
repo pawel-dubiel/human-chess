@@ -73,9 +73,7 @@ def process_single_game(game_data):
     for move in game.mainline_moves():
         current_elo = white_elo if board.turn == chess.WHITE else black_elo
 
-        if board.fullmove_number < 5:
-            board.push(move)
-            continue
+
         
         try:
             best_move, best_score, analysis = analyze_position_worker(board)
